@@ -5,6 +5,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
+
+	"github.com/uzimaru0000/linebot/model"
 
 	"github.com/joho/godotenv"
 	"github.com/line/line-bot-sdk-go/linebot"
@@ -13,6 +16,15 @@ import (
 )
 
 var client *linebot.Client
+var userData map[string]State
+var appID string
+
+type State = uint8
+
+const (
+	LISTEN = iota
+	ASK
+)
 
 func main() {
 	err := godotenv.Load()
@@ -25,6 +37,10 @@ func main() {
 		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	}
+
+	appID = os.Getenv("APP_ID")
+
+	userData = make(map[string]State)
 
 	http.HandleFunc("/callback", Callback)
 	if err := http.ListenAndServe(":5000", nil); err != nil {
@@ -52,66 +68,74 @@ func Callback(w http.ResponseWriter, req *http.Request) {
 		case linebot.EventTypeMessage:
 			switch msg := event.Message.(type) {
 			case *linebot.TextMessage:
-				log.Printf("%v", msg)
-				if err = MessageHander(msg, event.ReplyToken); err != nil {
+				if err = MessageHandler(event.Source.UserID, msg, event.ReplyToken); err != nil {
 					log.Print(err)
 				}
 			}
 		case linebot.EventTypePostback:
-
+			data := event.Postback.Data
+			if err = PostBackHandler(event.Source.UserID, data, event.ReplyToken); err != nil {
+				log.Print(err)
+			}
 		}
 	}
 }
 
-func MessageHander(message *linebot.TextMessage, token string) error {
+func MessageHandler(userID string, message *linebot.TextMessage, token string) error {
 	var msg linebot.SendingMessage
-	switch message.Text {
-	case "buttons":
+	switch userData[userID] {
+	case ASK:
+		log.Printf("ASK : %s", message.Text)
+		userData[userID] = LISTEN
+	default:
 		btn := template.NewButtons()
+		btn.Title = "レシピをおすすめします"
+		btn.SubTitle = "3つから選んでください！"
+		btn.ImagePath = "https://3.bp.blogspot.com/-N2OBmlrmp6I/UnyHSqHeW3I/AAAAAAAAahc/1XbLO4ZbaQg/s800/cooking_chef.png"
 		if err := btn.AddButtons(
-			linebot.NewPostbackAction("Say hello1", "hello こんにちは", "", "hello こんにちは"),
-			linebot.NewPostbackAction("言 hello2", "hello こんにちは", "hello こんにちは", ""),
-			linebot.NewPostbackAction("言 hello2", "hello こんにちは", "hello こんにちは", ""),
-			linebot.NewPostbackAction("言 hello2", "hello こんにちは", "hello こんにちは", ""),
+			linebot.NewPostbackAction("食材からオススメ", "1", "", "食材からオススメ"),
+			linebot.NewPostbackAction("季節のオススメ", "2", "", "季節のオススメ"),
+			linebot.NewPostbackAction("おまかせ！", "3", "", "おまかせ！"),
 		); err != nil {
 			return err
 		}
 		msg = btn.ButtonsTemplate()
-
-	case "confirm":
-		confirm := template.NewConfirms()
-		msg = confirm.ConfirmsTemplate()
-
-	case "carousel":
-		carousel := template.NewCarousel()
-		btn := template.NewButtons()
-		if err := btn.AddButtons(
-			linebot.NewPostbackAction("Say hello1", "hello こんにちは", "", "hello こんにちは"),
-			linebot.NewPostbackAction("言 hello2", "hello こんにちは", "hello こんにちは", ""),
-			linebot.NewPostbackAction("言 hello2", "hello こんにちは", "hello こんにちは", ""),
-		); err != nil {
-			return err
-		}
-
-		if err := carousel.SetColumns(btn, btn); err != nil {
-			return err
-		}
-		log.Println(carousel.Columns)
-		msg = carousel.CarouselTemplate()
-
-	case "image carousel":
-		col := template.NewImageColumns()
-		col.SetImageAction(linebot.NewURIAction("Go to LINE", "https://line.me"))
-
-		c := template.NewImageCarousel()
-		if err := c.SetImageCarousel(col, col, col); err != nil {
-			return err
-		}
-		msg = c.CarouselTemplate()
-
-	default:
-		log.Println(message.Text)
 	}
+
+	if msg != nil {
+		if _, err := client.ReplyMessage(token, msg).Do(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func PostBackHandler(userID, data, token string) error {
+	var msg linebot.SendingMessage
+	switch data {
+	case "1":
+		msg = linebot.NewTextMessage("食材を教えてください！")
+		userData[userID] = ASK
+	case "2":
+		id := model.TimeToCategoryID(time.Now())
+		recipes, err := model.GetRecipe(appID, id)
+		if err != nil {
+			return err
+		}
+
+		carousel := template.NewCarousel()
+		btns := make([]*template.Buttons, 0)
+		for _, recipe := range recipes {
+			btns = append(btns, recipe.RecipeTemplate())
+		}
+		if err := carousel.SetColumns(btns...); err != nil {
+			return err
+		}
+		msg = carousel.CarouselTemplate()
+	case "3":
+		// TODO: ランダムなカテゴリーIDでおすすめ
+	}
+
 	if msg != nil {
 		if _, err := client.ReplyMessage(token, msg).Do(); err != nil {
 			return err
