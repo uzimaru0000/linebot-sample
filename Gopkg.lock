@@ -19,9 +19,12 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:3b8524c785074576b2377a2f46af19553f275f9e29d099c75f82e6ef4a48fed3"
+  digest = "1:90ba7a0c74a44c44c7c4f28ca73a7e9543570afd7c2503b0062432e4145d4de6"
   name = "github.com/poccariswet/bot"
-  packages = ["auth"]
+  packages = [
+    "auth",
+    "template",
+  ]
   pruneopts = "UT"
   revision = "b4ee5420d716447c0c7a9fb26540204d4e090c83"
 
@@ -32,6 +35,7 @@
     "github.com/joho/godotenv",
     "github.com/line/line-bot-sdk-go/linebot",
     "github.com/poccariswet/bot/auth",
+    "github.com/poccariswet/bot/template",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
