@@ -12,9 +12,9 @@ import (
 )
 
 type Category struct {
-	ID     int    `json:"categoryId"`
-	Name   string `json:"categoryName"`
-	Parent *int   `json:"parentCategoryId"`
+	ID     json.Number `json:"categoryId"`
+	Name   string      `json:"categoryName"`
+	Parent *string     `json:"parentCategoryId"`
 }
 
 type Categories struct {
@@ -111,4 +111,12 @@ func (r *Recipe) RecipeTemplate() *template.Buttons {
 	btn.AddButtons(linebot.NewURIAction("レシピへ", r.RecipeURL))
 
 	return btn
+}
+
+func MatchCategory(cate *Categories, str string) string {
+	// var c *Category
+	// currentParent := ""
+	result := ""
+
+	return result
 }

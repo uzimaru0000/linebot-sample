@@ -85,7 +85,26 @@ func MessageHandler(userID string, message *linebot.TextMessage, token string) e
 	var msg linebot.SendingMessage
 	switch userData[userID] {
 	case ASK:
-		log.Printf("ASK : %s", message.Text)
+		categories, err := model.GetCategory(appID)
+		if err != nil {
+			return err
+		}
+		id := model.MatchCategory(categories, message.Text)
+		recipes, err := model.GetRecipe(appID, id)
+		if err != nil {
+			return err
+		}
+
+		carousel := template.NewCarousel()
+		btns := make([]*template.Buttons, 0)
+		for _, recipe := range recipes {
+			btns = append(btns, recipe.RecipeTemplate())
+		}
+		if err := carousel.SetColumns(btns...); err != nil {
+			return err
+		}
+		msg = carousel.CarouselTemplate()
+
 		userData[userID] = LISTEN
 	default:
 		btn := template.NewButtons()
@@ -93,7 +112,7 @@ func MessageHandler(userID string, message *linebot.TextMessage, token string) e
 		btn.SubTitle = "3つから選んでください！"
 		btn.ImagePath = "https://3.bp.blogspot.com/-N2OBmlrmp6I/UnyHSqHeW3I/AAAAAAAAahc/1XbLO4ZbaQg/s800/cooking_chef.png"
 		if err := btn.AddButtons(
-			linebot.NewPostbackAction("食材からオススメ", "1", "", "食材からオススメ"),
+			linebot.NewPostbackAction("今の気分からオススメ", "1", "", "今の気分からオススメ"),
 			linebot.NewPostbackAction("季節のオススメ", "2", "", "季節のオススメ"),
 			linebot.NewPostbackAction("おまかせ！", "3", "", "おまかせ！"),
 		); err != nil {
@@ -114,7 +133,7 @@ func PostBackHandler(userID, data, token string) error {
 	var msg linebot.SendingMessage
 	switch data {
 	case "1":
-		msg = linebot.NewTextMessage("食材を教えてください！")
+		msg = linebot.NewTextMessage("今の気分は？")
 		userData[userID] = ASK
 	case "2":
 		id := model.TimeToCategoryID(time.Now())
